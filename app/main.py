@@ -1,6 +1,6 @@
 
 
-from typing import Optional
+from typing import Optional, List
 from fastapi import Body, Depends, FastAPI, HTTPException, Response, status
 from pydantic import BaseModel
 from random import randrange
@@ -8,8 +8,10 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
 
+from sqlalchemy.exc import List
 
-from . import model
+
+from . import model , schemas
 from .database import engine, get_db
 
 
@@ -23,10 +25,6 @@ app = FastAPI()
  
 
 
-class Post(BaseModel):
-    title: str
-    content : str
-    published : bool  = True
     
 
 while True:
@@ -71,18 +69,19 @@ def root():
     return {"message" : "Test"}
 
 
-@app.get("/posts")
-def get_posts():
-    cursor.execute("""SELECT * FROM posts""")
-    posts = cursor.fetchall()
-    return {"data": posts}
+@app.get("/posts",response_model=List[schemas.Post])
+def get_posts(db=Depends(get_db)):
+    # cursor.execute("""SELECT * FROM posts""")
+    # posts = cursor.fetchall()
+    posts = db.query(model.Post).all()
+    return posts
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_post(post: Post, db=Depends(get_db)):
+def create_post(post: schemas.PostCreate, db=Depends(get_db)):
 
    # print(**post.model_dump()) # ** -> unpacks dictionary
-    new_post = model.Post(**post.model_dump())
+    new_post = model.schemas.Post(**post.model_dump())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -101,19 +100,19 @@ def create_post(post: Post, db=Depends(get_db)):
 
 
 
-@app.get("/posts/{id}") 
+@app.get("/posts/{id}",response_model=schemas.Post) 
 def get_post(id:int, db=Depends(get_db)):
    # print(id)
 #    cursor.execute(""" SELECT * FROM posts WHERE id = %s """,(str(id),))
 #    post =  cursor.fetchone()
 
-    post = db.query(model.Post).filter(model.Post.id == id).first()
+    post = db.query(model.schemas.Post).filter(model.schemas.Post.id == id).first()
     # print(post)
 
     if not post:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND,
         detail = f"post with id {id} was not found")
-    return {"Post detail" : post} 
+    return post
         #response.status_code = status.HTTP_404_NOT_FOUND
 
 
@@ -133,7 +132,7 @@ def delete_post(id:int, db=Depends(get_db)) :
     # deleted_post = cursor.fetchone()
     # conn.commit() # anytime we make a change to the db we need to commit
 
-    post = db.query(model.Post).filter(model.Post.id == id )
+    post = db.query(model.schemas.Post).filter(model.schemas.Post.id == id )
 
     if post.first() ==None :
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -147,8 +146,8 @@ def delete_post(id:int, db=Depends(get_db)) :
 
 
 
-@app.put("/posts/{id}")
-def update_post(id:int,post:Post,db=Depends(get_db)):
+@app.put("/posts/{id}",response_model=schemas.Post)
+def update_post(id:int,updated_post:schemas.PostCreate,db=Depends(get_db)):
 
     # cursor.execute("""UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""",
     # (post.title,post.content, post.published))
@@ -156,7 +155,7 @@ def update_post(id:int,post:Post,db=Depends(get_db)):
     # updated_post = cursor.fetchone()
     # conn.commit()
 
-    post_query = db.query(model.Post).filter(model.Post.id == id)
+    post_query = db.query(model.schemas.Post).filter(model.schemas.Post.id == id)
     existing_post = post_query.first()
 
     if existing_post is None:
@@ -166,10 +165,10 @@ def update_post(id:int,post:Post,db=Depends(get_db)):
     post_query.update(post.model_dump())
 
     db.commit()
-    return {"data" : post_query.first()}
+    return  post_query.first()
     
 
-@app.get("/sqlalchemy")
-def test_posts(db=Depends(get_db)):
-    posts = db.query(model.Post).all()
-    return {"status": "success", "data": posts}
+# @app.get("/sqlalchemy")
+# def test_posts(db=Depends(get_db)):
+#     posts = db.query(model.schemas.Post).all()
+#     return {"status": "success", "data": posts}

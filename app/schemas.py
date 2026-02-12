@@ -1,6 +1,7 @@
 
 from  datetime import datetime
-from pydantic import BaseModel
+from tokenize import String
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import Boolean
 
 
@@ -25,4 +26,14 @@ class PostCreate(PostBase):
     pass
 
 
-   
+class UserCreate(BaseModel):
+    email : EmailStrstr
+    password: str
+
+
+class UserOut(BaseModel):
+    id : int
+    email: EmailStr
+
+    class Config:
+            orm_mode = True
